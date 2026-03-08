@@ -210,7 +210,13 @@
   </div>
 </div>
 
-<script>
+<script type="module">
+  import {
+    escHtml, addTodo as _addTodo, toggleTodo, editTodo,
+    deleteTodo as _deleteTodo, clearCompleted as _clearCompleted,
+    filterTodos, getActiveCount
+  } from './todo.js';
+
   let todos = JSON.parse(localStorage.getItem('todos') || '[]');
   let filter = 'all';
 
@@ -220,81 +226,71 @@
 
   function render() {
     const list = document.getElementById('todoList');
-    const filtered = todos.filter(t =>
-      filter === 'all'       ? true :
-      filter === 'active'    ? !t.done :
-                               t.done
-    );
+    const filtered = filterTodos(todos, filter);
 
     if (filtered.length === 0) {
       list.innerHTML = '<div class="empty">タスクがありません</div>';
     } else {
       list.innerHTML = filtered.map(t => `
         <div class="todo-item ${t.done ? 'done' : ''}" data-id="${t.id}">
-          <input type="checkbox" ${t.done ? 'checked' : ''} onchange="toggle('${t.id}')">
+          <input type="checkbox" ${t.done ? 'checked' : ''} onchange="window.toggle('${t.id}')">
           <span class="todo-text" contenteditable="true"
-            onblur="editText('${t.id}', this.textContent)"
+            onblur="window.editText('${t.id}', this.textContent)"
             onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}"
           >${escHtml(t.text)}</span>
-          <button class="delete-btn" onclick="deleteTodo('${t.id}')">&#x2715;</button>
+          <button class="delete-btn" onclick="window.deleteTodo('${t.id}')">&#x2715;</button>
         </div>
       `).join('');
     }
 
-    const active = todos.filter(t => !t.done).length;
     document.getElementById('countLabel').textContent =
-      `残り ${active} 件 / 全 ${todos.length} 件`;
+      `残り ${getActiveCount(todos)} 件 / 全 ${todos.length} 件`;
 
     ['all', 'active', 'completed'].forEach(f => {
       document.getElementById('filter-' + f).classList.toggle('active', f === filter);
     });
   }
 
-  function escHtml(str) {
-    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  }
-
-  function addTodo() {
+  window.addTodo = function() {
     const input = document.getElementById('newTodo');
-    const text = input.value.trim();
-    if (!text) return;
-    todos.unshift({ id: Date.now().toString(), text, done: false });
-    input.value = '';
+    const before = todos.length;
+    todos = _addTodo(todos, input.value);
+    if (todos.length > before) input.value = '';
     save();
     render();
-  }
+  };
 
-  function toggle(id) {
-    const t = todos.find(t => t.id === id);
-    if (t) { t.done = !t.done; save(); render(); }
-  }
-
-  function editText(id, text) {
-    const trimmed = text.trim();
-    const t = todos.find(t => t.id === id);
-    if (t && trimmed) { t.text = trimmed; save(); }
-    else if (t && !trimmed) { render(); } // revert empty edit
-  }
-
-  function deleteTodo(id) {
-    todos = todos.filter(t => t.id !== id);
+  window.toggle = function(id) {
+    todos = toggleTodo(todos, id);
     save();
     render();
-  }
+  };
 
-  function setFilter(f) {
+  window.editText = function(id, text) {
+    todos = editTodo(todos, id, text);
+    save();
+    render();
+  };
+
+  window.deleteTodo = function(id) {
+    todos = _deleteTodo(todos, id);
+    save();
+    render();
+  };
+
+  window.setFilter = function(f) {
     filter = f;
     render();
-  }
+  };
 
-  function clearCompleted() {
-    todos = todos.filter(t => !t.done);
+  window.clearCompleted = function() {
+    todos = _clearCompleted(todos);
     save();
     render();
-  }
+  };
 
   document.getElementById('newTodo').addEventListener('keydown', e => {
-    if (e.key === 'Enter') addTodo();
+    if (e.key === 'Enter') window.addTodo();
   });
 
   render();
